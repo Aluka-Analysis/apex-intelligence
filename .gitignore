@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data — face embeddings are sensitive
+data/embeddings/
+data/test_images/
+
+# Environment
+.env
+*.env
+
+# Models — too large for GitHub
+models/
+*.onnx
+*.pkl
+
+# System
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
