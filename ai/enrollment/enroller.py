@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 from ai.recognition.detector import FaceDetector
 from ai.recognition.embedder import FaceEmbedder
 from database.models import Student, FaceEmbedding, AuditLog
-from database.connection import get_local_db
 
 
 class StudentEnroller:
@@ -41,11 +40,7 @@ class StudentEnroller:
 
         Args:
             required_captures: number of face images to capture
-                               More captures = better accuracy
-                               5 is the recommended minimum
-
             capture_delay:     seconds between captures
-                               Gives student time to adjust pose
         """
         self.detector          = FaceDetector()
         self.embedder          = FaceEmbedder()
@@ -61,20 +56,13 @@ class StudentEnroller:
         """
         Capture face images from webcam and enroll student.
 
-        Opens the laptop camera, guides the student through
-        multiple capture positions, generates embeddings,
-        and stores them in the database.
-
         Args:
             student_id:   UUID of student in database
             student_name: Full name for display during capture
             db:           Database session
 
         Returns:
-            Dict with enrollment result:
-            - success:   True if enrollment completed
-            - captures:  number of successful captures
-            - message:   result description
+            Dict with enrollment result
         """
         print(f"\nStarting enrollment for: {student_name}")
         print(f"Required captures: {self.required_captures}")
@@ -91,7 +79,6 @@ class StudentEnroller:
 
         embeddings_collected = []
         capture_count        = 0
-        last_capture_time    = 0
 
         try:
             while capture_count < self.required_captures:
@@ -99,11 +86,9 @@ class StudentEnroller:
                 if not ret:
                     break
 
-                # Mirror the frame for natural interaction
-                frame = cv2.flip(frame, 1)
+                frame         = cv2.flip(frame, 1)
                 display_frame = frame.copy()
 
-                # Detect face in current frame
                 face = self.detector.detect_largest_face(frame)
 
                 if face is not None:
@@ -112,24 +97,23 @@ class StudentEnroller:
                     if is_ok:
                         display_frame = self.detector.draw_detection(
                             display_frame, face,
-                            label=f"Ready — {student_name}",
-                            color=(0, 255, 0)
+                            label  = f"Ready — {student_name}",
+                            color  = (0, 255, 0)
                         )
                         instruction = "SPACE to capture"
-                        color = (0, 255, 0)
+                        color       = (0, 255, 0)
                     else:
                         display_frame = self.detector.draw_detection(
                             display_frame, face,
-                            label=reason,
-                            color=(0, 165, 255)
+                            label  = reason,
+                            color  = (0, 165, 255)
                         )
                         instruction = reason
-                        color = (0, 165, 255)
+                        color       = (0, 165, 255)
                 else:
                     instruction = "No face detected — position face in frame"
-                    color = (0, 0, 255)
+                    color       = (0, 0, 255)
 
-                # Display progress
                 cv2.putText(
                     display_frame,
                     f"Captures: {capture_count}/{self.required_captures}",
@@ -152,7 +136,10 @@ class StudentEnroller:
                     0.5, (200, 200, 200), 1
                 )
 
-                cv2.imshow(f"Almanac AI — Enrolling {student_name}", display_frame)
+                cv2.imshow(
+                    f"Almanac AI — Enrolling {student_name}",
+                    display_frame
+                )
 
                 key = cv2.waitKey(1) & 0xFF
 
@@ -169,7 +156,6 @@ class StudentEnroller:
                         capture_count += 1
                         print(f"  Capture {capture_count}/{self.required_captures} saved.")
 
-                        # Flash green to confirm capture
                         confirm_frame = frame.copy()
                         cv2.rectangle(
                             confirm_frame,
@@ -177,7 +163,10 @@ class StudentEnroller:
                             (confirm_frame.shape[1], confirm_frame.shape[0]),
                             (0, 255, 0), 20
                         )
-                        cv2.imshow(f"Almanac AI — Enrolling {student_name}", confirm_frame)
+                        cv2.imshow(
+                            f"Almanac AI — Enrolling {student_name}",
+                            confirm_frame
+                        )
                         cv2.waitKey(300)
                     else:
                         print(f"  Capture rejected: {reason}")
@@ -188,20 +177,14 @@ class StudentEnroller:
 
         if capture_count < self.required_captures:
             return {
-                'success': False,
+                'success':  False,
                 'captures': capture_count,
-                'message': f'Enrollment incomplete. Got {capture_count}/{self.required_captures} captures.'
+                'message':  f'Incomplete. Got {capture_count}/{self.required_captures} captures.'
             }
 
-        # Save embeddings to database
-        saved = self._save_embeddings(
-            student_id,
-            embeddings_collected,
-            db
-        )
+        saved = self._save_embeddings(student_id, embeddings_collected, db)
 
         if saved:
-            # Update student enrollment status
             student = db.query(Student).filter(
                 Student.id == student_id
             ).first()
@@ -210,7 +193,6 @@ class StudentEnroller:
                 student.is_enrolled = True
                 db.commit()
 
-            # Log in audit trail
             audit = AuditLog(
                 action       = 'STUDENT_ENROLLED',
                 target_id    = student_id,
@@ -228,15 +210,15 @@ class StudentEnroller:
             print(f"{capture_count} face captures stored successfully.")
 
             return {
-                'success': True,
+                'success':  True,
                 'captures': capture_count,
-                'message': f'Successfully enrolled {student_name} with {capture_count} captures.'
+                'message':  f'Successfully enrolled {student_name} with {capture_count} captures.'
             }
 
         return {
-            'success': False,
+            'success':  False,
             'captures': capture_count,
-            'message': 'Failed to save embeddings to database.'
+            'message':  'Failed to save embeddings to database.'
         }
 
     def _save_embeddings(
@@ -247,8 +229,7 @@ class StudentEnroller:
     ) -> bool:
         """
         Save all collected embeddings to database.
-        Each capture is stored as a separate embedding row.
-        Multiple embeddings per student improves accuracy.
+        Each capture stored as a separate embedding row.
 
         Args:
             student_id:  student UUID
@@ -283,30 +264,48 @@ class StudentEnroller:
     def load_all_embeddings(self, db: Session) -> list:
         """
         Load all enrolled student embeddings from database.
-        Used by the recognition engine at startup and
-        refreshed periodically during operation.
+        Groups multiple embeddings per student correctly.
+        Each student appears ONCE with all their embeddings
+        available for matching accuracy.
 
         Args:
             db: database session
 
         Returns:
-            List of dicts with student_id, student_name, embedding
+            List of dicts with student_id, student_name,
+            class_name, and embeddings list
         """
         results = (
             db.query(FaceEmbedding, Student)
             .join(Student, FaceEmbedding.student_id == Student.id)
             .filter(Student.is_enrolled == True)
-            .filter(Student.is_active == True)
+            .filter(Student.is_active   == True)
             .all()
         )
 
-        enrolled = []
+        # Group embeddings by student
+        students_map = {}
+
         for face_emb, student in results:
-            enrolled.append({
-                'student_id':   student.id,
-                'student_name': f"{student.first_name} {student.last_name}",
-                'class_name':   student.class_name,
-                'embedding':    face_emb.embedding
-            })
+            sid = student.id
+
+            if sid not in students_map:
+                students_map[sid] = {
+                    'student_id':   student.id,
+                    'student_name': f"{student.first_name} {student.last_name}",
+                    'class_name':   student.class_name,
+                    'embeddings':   []
+                }
+
+            students_map[sid]['embeddings'].append(face_emb.embedding)
+
+        enrolled = list(students_map.values())
+
+        print(f"Loaded {len(enrolled)} enrolled student(s):")
+        for s in enrolled:
+            print(
+                f"  → {s['student_name']} — {s['class_name']} "
+                f"({len(s['embeddings'])} embeddings)"
+            )
 
         return enrolled
