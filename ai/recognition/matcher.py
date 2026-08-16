@@ -1,33 +1,16 @@
 """
 Face Matching Module.
-
-Compares a detected face against enrolled student embeddings
-and returns the best identity match.
-
-The enrollment system stores multiple embeddings per student.
-The matcher therefore supports:
-
-    Student
-        ├── Embedding 1
-        ├── Embedding 2
-        ├── Embedding 3
-        ├── Embedding 4
-        └── Embedding 5
-
-The query face is compared against every stored embedding,
-and the strongest similarity score is used for identification.
+Compares a detected face against all enrolled students
+and returns the best match above a confidence threshold.
 """
 
 import numpy as np
-
 from ai.recognition.embedder import FaceEmbedder
 
 
 class FaceMatcher:
     """
-    Matches a detected face against enrolled students.
-
-    Supports multiple face embeddings per student.
+    Matches a detected face against enrolled student embeddings.
     """
 
     def __init__(self, threshold: float = 0.45):
@@ -35,17 +18,13 @@ class FaceMatcher:
         Initialize the matcher.
 
         Args:
-            threshold:
-                Minimum cosine similarity required
-                to consider a face a match.
-
-        IMPORTANT:
-            This is an initial experimental threshold.
-            It should NOT be considered production-calibrated.
+            threshold: minimum similarity score to accept as a match.
+                      0.45 is a balanced starting point.
+                      Higher = stricter = fewer false accepts
+                      Lower  = looser  = fewer false rejects
         """
-
         self.threshold = threshold
-        self.embedder = FaceEmbedder()
+        self.embedder  = FaceEmbedder()
 
     def match(
         self,
@@ -53,276 +32,118 @@ class FaceMatcher:
         enrolled_students: list
     ) -> dict:
         """
-        Match a query face against enrolled students.
+        Match a query embedding against all enrolled students.
+        Each student may have multiple embeddings.
+        Returns the best match across all embeddings.
 
-        Expected input structure:
-
-        [
-            {
-                "student_id": "...",
-                "student_name": "Chidi Okafor",
-                "class_name": "JSS 2A",
-                "embeddings": [
-                    "...",
-                    "...",
-                    "..."
-                ]
-            }
-        ]
+        Args:
+            query_embedding:   embedding of face to identify
+            enrolled_students: list of dicts with keys:
+                               student_id, student_name,
+                               class_name, embeddings (list)
 
         Returns:
-
-        {
-            "matched": True/False,
-            "student_id": "...",
-            "student_name": "...",
-            "confidence": 0.82,
-            "status": "matched"
-        }
+            Dict with match result:
+            - matched:      True if match found
+            - student_id:   ID of matched student or None
+            - student_name: Name of matched student or None
+            - class_name:   Class of matched student or None
+            - confidence:   similarity score
+            - status:       matched, unknown, or no_enrollments
         """
-
         if not enrolled_students:
             return {
-                "matched": False,
-                "student_id": None,
-                "student_name": None,
-                "confidence": 0.0,
-                "status": "no_embeddings"
+                'matched':      False,
+                'student_id':   None,
+                'student_name': None,
+                'class_name':   None,
+                'confidence':   0.0,
+                'status':       'no_enrollments'
             }
 
-        query_norm = self.embedder.normalize(
-            query_embedding
-        )
-
-        best_score = -1.0
+        query_norm   = self.embedder.normalize(query_embedding)
+        best_score   = 0.0
         best_student = None
 
-        # -------------------------------------------------
-        # Compare query against every enrolled student
-        # -------------------------------------------------
-
         for student in enrolled_students:
+            # Compare against ALL embeddings for this student
+            # Take the highest score across all captures
+            for embedding_json in student['embeddings']:
+                stored      = self.embedder.from_json(embedding_json)
+                stored_norm = self.embedder.normalize(stored)
+                score       = self.embedder.calculate_similarity(
+                    query_norm,
+                    stored_norm
+                )
 
-            embeddings = student.get("embeddings", [])
+                if score > best_score:
+                    best_score   = score
+                    best_student = student
 
-            if not embeddings:
-                continue
-
-            # ---------------------------------------------
-            # Compare against every enrollment sample
-            # ---------------------------------------------
-
-            for embedding_json in embeddings:
-
-                try:
-
-                    stored_embedding = (
-                        self.embedder.from_json(
-                            embedding_json
-                        )
-                    )
-
-                    stored_norm = (
-                        self.embedder.normalize(
-                            stored_embedding
-                        )
-                    )
-
-                    score = (
-                        self.embedder.calculate_similarity(
-                            query_norm,
-                            stored_norm
-                        )
-                    )
-
-                    # Keep strongest embedding
-                    if score > best_score:
-
-                        best_score = score
-                        best_student = student
-
-                except Exception as error:
-
-                    print(
-                        f"Warning: could not process "
-                        f"embedding for "
-                        f"{student.get('student_name')}: "
-                        f"{error}"
-                    )
-
-        # -------------------------------------------------
-        # No valid embeddings
-        # -------------------------------------------------
-
-        if best_student is None:
-
+        if best_score >= self.threshold and best_student:
             return {
-                "matched": False,
-                "student_id": None,
-                "student_name": None,
-                "confidence": 0.0,
-                "status": "no_valid_embeddings"
+                'matched':      True,
+                'student_id':   best_student['student_id'],
+                'student_name': best_student['student_name'],
+                'class_name':   best_student['class_name'],
+                'confidence':   round(best_score, 4),
+                'status':       'matched'
             }
-
-        confidence = float(
-            max(0.0, best_score)
-        )
-
-        # -------------------------------------------------
-        # Match accepted
-        # -------------------------------------------------
-
-        if confidence >= self.threshold:
-
-            return {
-                "matched": True,
-                "student_id": best_student["student_id"],
-                "student_name": best_student["student_name"],
-                "class_name": best_student.get("class_name"),
-                "confidence": round(
-                    confidence,
-                    4
-                ),
-                "status": "matched"
-            }
-
-        # -------------------------------------------------
-        # Unknown face
-        # -------------------------------------------------
 
         return {
-            "matched": False,
-            "student_id": None,
-            "student_name": None,
-            "class_name": None,
-            "confidence": round(
-                confidence,
-                4
-            ),
-            "status": "unknown"
+            'matched':      False,
+            'student_id':   None,
+            'student_name': None,
+            'class_name':   None,
+            'confidence':   round(best_score, 4),
+            'status':       'unknown'
         }
 
-    def match_best(
+    def match_top_k(
         self,
         query_embedding: np.ndarray,
         enrolled_students: list,
         top_k: int = 3
     ) -> list:
         """
-        Return the strongest candidate matches.
+        Return top K matches for debugging and analysis.
+        Useful in the laboratory notebook to understand
+        model behaviour.
 
-        Useful for debugging, threshold analysis,
-        and laboratory experiments.
+        Args:
+            query_embedding:   embedding to match
+            enrolled_students: enrolled students list
+            top_k:             number of top matches to return
 
         Returns:
-
-        [
-            {
-                "student_id": "...",
-                "student_name": "...",
-                "confidence": 0.82,
-                "matched": True
-            }
-        ]
+            List of top K matches sorted by confidence
         """
-
         if not enrolled_students:
             return []
 
-        query_norm = self.embedder.normalize(
-            query_embedding
-        )
-
-        candidates = []
+        query_norm = self.embedder.normalize(query_embedding)
+        scores     = []
 
         for student in enrolled_students:
+            best_score_for_student = 0.0
 
-            embeddings = student.get(
-                "embeddings",
-                []
-            )
+            for embedding_json in student['embeddings']:
+                stored      = self.embedder.from_json(embedding_json)
+                stored_norm = self.embedder.normalize(stored)
+                score       = self.embedder.calculate_similarity(
+                    query_norm,
+                    stored_norm
+                )
+                if score > best_score_for_student:
+                    best_score_for_student = score
 
-            student_best_score = -1.0
+            scores.append({
+                'student_id':   student['student_id'],
+                'student_name': student['student_name'],
+                'class_name':   student['class_name'],
+                'confidence':   round(best_score_for_student, 4),
+                'matched':      best_score_for_student >= self.threshold
+            })
 
-            for embedding_json in embeddings:
-
-                try:
-
-                    stored_embedding = (
-                        self.embedder.from_json(
-                            embedding_json
-                        )
-                    )
-
-                    stored_norm = (
-                        self.embedder.normalize(
-                            stored_embedding
-                        )
-                    )
-
-                    score = (
-                        self.embedder.calculate_similarity(
-                            query_norm,
-                            stored_norm
-                        )
-                    )
-
-                    if score > student_best_score:
-                        student_best_score = score
-
-                except Exception:
-                    continue
-
-            if student_best_score >= 0:
-
-                candidates.append({
-                    "student_id": student["student_id"],
-                    "student_name": student["student_name"],
-                    "class_name": student.get("class_name"),
-                    "confidence": round(
-                        float(student_best_score),
-                        4
-                    ),
-                    "matched": (
-                        student_best_score
-                        >= self.threshold
-                    )
-                })
-
-        candidates.sort(
-            key=lambda x: x["confidence"],
-            reverse=True
-        )
-
-        return candidates[:top_k]
-
-    def set_threshold(
-        self,
-        threshold: float
-    ):
-        """
-        Dynamically change the recognition threshold.
-
-        Useful during experimentation.
-
-        Example:
-
-            matcher.set_threshold(0.50)
-        """
-
-        if not 0.0 <= threshold <= 1.0:
-            raise ValueError(
-                "Threshold must be between 0.0 and 1.0"
-            )
-
-        self.threshold = threshold
-
-        print(
-            f"Recognition threshold updated to "
-            f"{threshold:.2%}"
-        )
-
-    def get_threshold(self) -> float:
-        """Return current recognition threshold."""
-
-        return self.threshold
+        scores.sort(key=lambda x: x['confidence'], reverse=True)
+        return scores[:top_k]

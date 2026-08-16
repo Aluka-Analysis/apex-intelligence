@@ -10,10 +10,13 @@ Recognition:
     InsightFace buffalo_l
 
 Liveness:
-    Passive MiniFASNetV2
+    MiniFASNetV2
 
 Storage:
     Local SQLite
+
+Current Mode:
+    DIAGNOSTIC LIVENESS MODE
 
 Pipeline:
 
@@ -31,18 +34,25 @@ Pipeline:
        ↓
     Temporal Smoothing
        ↓
-    Duplicate Protection
-       ↓
-    Attendance Record
-       ↓
-    SQLite
+    Diagnostic Output
+
+IMPORTANT:
+
+    Attendance logging is currently DISABLED.
+
+    The current objective is to validate the MiniFASNetV2
+    class mapping and liveness behaviour using a real
+    person in front of the laptop webcam.
+
+    Do NOT use the current liveness score as a production
+    security decision until the MiniFASNetV2 class mapping
+    has been experimentally validated.
 """
 
 import cv2
 import time
 
 from collections import defaultdict
-from datetime import datetime
 
 from database.connection import (
     init_local_db,
@@ -72,13 +82,42 @@ from ai.attendance.engine import AttendanceEngine
 
 CAMERA_INDEX = 0
 
+# Face recognition threshold.
+#
+# Your current system was already recognizing Chidi,
+# so we leave this at the existing value.
 RECOGNITION_THRESHOLD = 0.45
 
+# ------------------------------------------------------------
+# LIVENESS CONFIGURATION
+# ------------------------------------------------------------
+#
+# IMPORTANT:
+#
+# At this stage the liveness engine is diagnostic.
+#
+# We are NOT using this threshold to decide attendance.
+# It is only used by AttendanceEngine to display whether
+# the currently assumed "real" class is above or below
+# the diagnostic threshold.
+#
+# The current engine assumes class 1 temporarily.
+# Your logs show class 2 is actually dominant.
+#
+# We therefore keep the threshold here but DO NOT claim
+# that it represents a validated live-person probability.
+#
 LIVENESS_REAL_THRESHOLD = 0.60
 
 MIN_LIVENESS_FRAMES = 3
 
-WINDOW_NAME = "Almanac AI — Live Attendance"
+# Number of frames that should be considered live before
+# the diagnostic engine reports an above-threshold result.
+MIN_LIVE_FRAMES = 3
+
+WINDOW_NAME = (
+    "Almanac AI — Live Attendance"
+)
 
 
 # ============================================================
@@ -87,23 +126,19 @@ WINDOW_NAME = "Almanac AI — Live Attendance"
 
 def load_enrolled_embeddings(db):
     """
-    Load all active enrolled students.
+    Load all active enrolled students and their face
+    embeddings from the local SQLite database.
 
-    IMPORTANT:
+    Returns:
 
-    A student can have multiple face embeddings.
-
-    Example:
-
-        Chidi Okafor
-            ├── embedding 1
-            ├── embedding 2
-            ├── embedding 3
-            ├── embedding 4
-            └── embedding 5
-
-    The embeddings are grouped by student before
-    being passed to FaceMatcher.
+        [
+            {
+                "student_id": ...,
+                "student_name": ...,
+                "class_name": ...,
+                "embeddings": [...]
+            }
+        ]
     """
 
     rows = (
@@ -167,7 +202,7 @@ def load_enrolled_embeddings(db):
 
 
 # ============================================================
-# DISPLAY RESULT
+# DRAW RESULT
 # ============================================================
 
 def draw_result(
@@ -175,8 +210,8 @@ def draw_result(
     result
 ):
     """
-    Draw recognition/liveness result
-    on the camera frame.
+    Draw recognition and diagnostic liveness information
+    onto the webcam frame.
     """
 
     face = result.get(
@@ -186,10 +221,24 @@ def draw_result(
     if face is None:
         return frame
 
-    x1, y1, x2, y2 = [
-        int(value)
-        for value in face.bbox
-    ]
+    # --------------------------------------------------------
+    # FACE BOUNDING BOX
+    # --------------------------------------------------------
+
+    try:
+
+        x1, y1, x2, y2 = [
+            int(value)
+            for value in face.bbox
+        ]
+
+    except Exception:
+
+        return frame
+
+    # --------------------------------------------------------
+    # RESULT DATA
+    # --------------------------------------------------------
 
     status = result.get(
         "status",
@@ -214,37 +263,56 @@ def draw_result(
         "smoothed_score"
     )
 
-    # --------------------------------------------------------
-    # Status text
-    # --------------------------------------------------------
+    class_0 = result.get(
+        "class_0"
+    )
 
-    if status == "attendance_logged":
+    class_1 = result.get(
+        "class_1"
+    )
 
-        label = (
-            f"{student_name} | "
-            f"ATTENDANCE LOGGED"
-        )
+    class_2 = result.get(
+        "class_2"
+    )
 
-    elif status == "already_logged":
+    frames = result.get(
+        "frames"
+    )
 
-        label = (
-            f"{student_name} | "
-            f"ALREADY PRESENT"
-        )
+    required_frames = result.get(
+        "required_frames"
+    )
 
-    elif status == "checking_liveness":
+    verdict = result.get(
+        "verdict"
+    )
 
-        label = (
-            f"{student_name} | "
-            f"Checking liveness..."
-        )
+    # ========================================================
+    # STATUS LABEL
+    # ========================================================
 
-    elif status == "liveness_failed":
+    if status == "liveness_diagnostic":
 
-        label = (
-            f"{student_name} | "
-            f"Liveness failed"
-        )
+        if verdict == "CURRENTLY_ABOVE_THRESHOLD":
+
+            label = (
+                f"{student_name} | "
+                "LIVENESS ABOVE THRESHOLD"
+            )
+
+        elif verdict == "CURRENTLY_BELOW_THRESHOLD":
+
+            label = (
+                f"{student_name} | "
+                "LIVENESS BELOW THRESHOLD"
+            )
+
+        else:
+
+            label = (
+                f"{student_name} | "
+                "CHECKING LIVENESS..."
+            )
 
     elif status == "unknown":
 
@@ -252,19 +320,35 @@ def draw_result(
 
     elif status == "poor_quality":
 
+        label = "Poor face quality"
+
+    elif status == "embedding_error":
+
+        label = "Embedding error"
+
+    elif status == "recognition_error":
+
+        label = "Recognition error"
+
+    elif status == "liveness_error":
+
         label = (
-            "Poor face quality"
+            f"{student_name} | "
+            "Liveness error"
         )
 
     else:
 
         label = status
 
-    # --------------------------------------------------------
-    # Draw box
-    # --------------------------------------------------------
+    # ========================================================
+    # BOX COLOR
+    # ========================================================
 
-    if status == "attendance_logged":
+    if (
+        status == "liveness_diagnostic"
+        and verdict == "CURRENTLY_ABOVE_THRESHOLD"
+    ):
 
         box_color = (
             0,
@@ -272,7 +356,10 @@ def draw_result(
             0
         )
 
-    elif status == "liveness_failed":
+    elif (
+        status == "liveness_diagnostic"
+        and verdict == "CURRENTLY_BELOW_THRESHOLD"
+    ):
 
         box_color = (
             0,
@@ -280,7 +367,7 @@ def draw_result(
             255
         )
 
-    elif status == "checking_liveness":
+    elif status == "liveness_diagnostic":
 
         box_color = (
             0,
@@ -296,6 +383,22 @@ def draw_result(
             255
         )
 
+    elif status == "poor_quality":
+
+        box_color = (
+            0,
+            165,
+            255
+        )
+
+    elif status == "liveness_error":
+
+        box_color = (
+            0,
+            0,
+            255
+        )
+
     else:
 
         box_color = (
@@ -303,6 +406,10 @@ def draw_result(
             255,
             0
         )
+
+    # ========================================================
+    # FACE BOX
+    # ========================================================
 
     cv2.rectangle(
         frame,
@@ -312,17 +419,13 @@ def draw_result(
         2
     )
 
-    # --------------------------------------------------------
-    # Recognition confidence
-    # --------------------------------------------------------
-
-    label_1 = (
-        f"{label}"
-    )
+    # ========================================================
+    # STATUS LABEL
+    # ========================================================
 
     cv2.putText(
         frame,
-        label_1,
+        label,
         (
             x1,
             max(
@@ -336,9 +439,9 @@ def draw_result(
         2
     )
 
-    # --------------------------------------------------------
-    # Recognition score
-    # --------------------------------------------------------
+    # ========================================================
+    # RECOGNITION CONFIDENCE
+    # ========================================================
 
     cv2.putText(
         frame,
@@ -356,17 +459,17 @@ def draw_result(
         1
     )
 
-    # --------------------------------------------------------
-    # Liveness score
-    # --------------------------------------------------------
+    # ========================================================
+    # LIVENESS SCORES
+    # ========================================================
 
     if real_score is not None:
 
         cv2.putText(
             frame,
             (
-                f"Live: "
-                f"{real_score:.1%}"
+                f"Current real score: "
+                f"{real_score:.2%}"
             ),
             (
                 x1,
@@ -384,7 +487,7 @@ def draw_result(
             frame,
             (
                 f"Smoothed: "
-                f"{smoothed_score:.1%}"
+                f"{smoothed_score:.2%}"
             ),
             (
                 x1,
@@ -392,6 +495,95 @@ def draw_result(
             ),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
+            box_color,
+            1
+        )
+
+    # ========================================================
+    # CLASS PROBABILITIES
+    # ========================================================
+    #
+    # This is especially important right now because we are
+    # trying to determine which MiniFASNetV2 class represents
+    # a real/live face.
+    #
+
+    if class_0 is not None:
+
+        cv2.putText(
+            frame,
+            (
+                f"C0: "
+                f"{class_0:.2%}"
+            ),
+            (
+                x1,
+                y2 + 80
+            ),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            box_color,
+            1
+        )
+
+    if class_1 is not None:
+
+        cv2.putText(
+            frame,
+            (
+                f"C1: "
+                f"{class_1:.2%}"
+            ),
+            (
+                x1 + 90,
+                y2 + 80
+            ),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            box_color,
+            1
+        )
+
+    if class_2 is not None:
+
+        cv2.putText(
+            frame,
+            (
+                f"C2: "
+                f"{class_2:.2%}"
+            ),
+            (
+                x1 + 180,
+                y2 + 80
+            ),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            box_color,
+            1
+        )
+
+    # ========================================================
+    # TEMPORAL INFORMATION
+    # ========================================================
+
+    if (
+        frames is not None
+        and required_frames is not None
+    ):
+
+        cv2.putText(
+            frame,
+            (
+                f"Frames: "
+                f"{frames}/"
+                f"{required_frames}"
+            ),
+            (
+                x1,
+                y2 + 100
+            ),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
             box_color,
             1
         )
@@ -406,12 +598,15 @@ def draw_result(
 def main():
 
     print()
+
     print(
         "=" * 65
     )
+
     print(
         "ALMANAC AI — LIVE ATTENDANCE"
     )
+
     print(
         "=" * 65
     )
@@ -425,11 +620,19 @@ def main():
     )
 
     print(
-        "Liveness: Passive"
+        "Recognition: InsightFace buffalo_l"
+    )
+
+    print(
+        "Liveness: MiniFASNetV2"
     )
 
     print(
         "Storage: Local SQLite"
+    )
+
+    print(
+        "Mode: DIAGNOSTIC LIVENESS"
     )
 
     print(
@@ -470,11 +673,12 @@ def main():
     school_id = school.id
 
     print(
-        f"\nSchool ID: {school_id}"
+        f"\nSchool ID: "
+        f"{school_id}"
     )
 
     # ========================================================
-    # LOAD ENROLLMENTS
+    # LOAD ENROLLED STUDENTS
     # ========================================================
 
     print(
@@ -584,7 +788,8 @@ def main():
         matcher=matcher,
         liveness_detector=liveness_detector,
         real_threshold=LIVENESS_REAL_THRESHOLD,
-        min_liveness_frames=MIN_LIVENESS_FRAMES
+        min_liveness_frames=MIN_LIVENESS_FRAMES,
+        min_live_frames=MIN_LIVE_FRAMES
     )
 
     print(
@@ -613,6 +818,20 @@ def main():
 
         return
 
+    # --------------------------------------------------------
+    # CAMERA SETTINGS
+    # --------------------------------------------------------
+
+    camera.set(
+        cv2.CAP_PROP_FRAME_WIDTH,
+        640
+    )
+
+    camera.set(
+        cv2.CAP_PROP_FRAME_HEIGHT,
+        480
+    )
+
     print(
         "\nCamera started successfully."
     )
@@ -631,6 +850,19 @@ def main():
 
     print(
         "Passive liveness is running silently."
+    )
+
+    print(
+        "\nIMPORTANT:"
+    )
+
+    print(
+        "Attendance logging is currently DISABLED."
+    )
+
+    print(
+        "The current session is collecting "
+        "MiniFASNetV2 diagnostic data."
     )
 
     print(
@@ -667,7 +899,10 @@ def main():
 
                 break
 
-            # Mirror camera
+            # ------------------------------------------------
+            # MIRROR CAMERA
+            # ------------------------------------------------
+
             frame = cv2.flip(
                 frame,
                 1
@@ -677,17 +912,32 @@ def main():
             # PROCESS FRAME
             # ------------------------------------------------
 
-            results = (
-                engine.process_frame(
-                    frame,
-                    enrolled_students,
-                    db,
-                    school_id
+            try:
+
+                results = (
+                    engine.process_frame(
+                        frame,
+                        enrolled_students,
+                        db,
+                        school_id
+                    )
                 )
-            )
+
+            except Exception as error:
+
+                print()
+                print(
+                    "[FRAME PROCESSING ERROR]"
+                )
+
+                print(
+                    str(error)
+                )
+
+                results = []
 
             # ------------------------------------------------
-            # DISPLAY RESULTS
+            # DRAW RESULTS
             # ------------------------------------------------
 
             for result in results:
@@ -696,9 +946,15 @@ def main():
                     "status"
                 )
 
+                # ------------------------------------------------
+                # RECOGNITION TRACKING
+                # ------------------------------------------------
+
                 if status in (
                     "matched",
                     "checking_liveness",
+                    "liveness_diagnostic",
+                    "liveness_error",
                     "attendance_logged",
                     "already_logged",
                     "liveness_failed"
@@ -715,6 +971,16 @@ def main():
                         students_recognised.add(
                             student_id
                         )
+
+                # ------------------------------------------------
+                # ATTENDANCE
+                # ------------------------------------------------
+                #
+                # Intentionally disabled.
+                #
+                # The current AttendanceEngine is in diagnostic
+                # mode and does not create attendance records.
+                #
 
                 if status == (
                     "attendance_logged"
@@ -750,6 +1016,7 @@ def main():
                     )
 
                     print()
+
                     print(
                         "=" * 60
                     )
@@ -790,46 +1057,110 @@ def main():
                         "=" * 60
                     )
 
+                # ------------------------------------------------
+                # DRAW
+                # ------------------------------------------------
+
                 frame = draw_result(
                     frame,
                     result
                 )
 
-            # ------------------------------------------------
+            # ====================================================
             # SYSTEM STATUS
-            # ------------------------------------------------
+            # ====================================================
 
             cv2.putText(
                 frame,
                 (
                     "ALMANAC AI | "
-                    "PASSIVE LIVENESS"
+                    "DIAGNOSTIC LIVENESS"
                 ),
-                (10, 30),
+                (
+                    10,
+                    30
+                ),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
-                (255, 255, 255),
+                (
+                    255,
+                    255,
+                    255
+                ),
                 2
             )
+
+            # ------------------------------------------------
+            # RECOGNIZED STUDENTS
+            # ------------------------------------------------
 
             cv2.putText(
                 frame,
                 (
-                    "Q = Quit"
+                    f"Recognized: "
+                    f"{len(students_recognised)}"
                 ),
+                (
+                    10,
+                    55
+                ),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (
+                    255,
+                    255,
+                    255
+                ),
+                1
+            )
+
+            # ------------------------------------------------
+            # ATTENDANCE STATUS
+            # ------------------------------------------------
+
+            cv2.putText(
+                frame,
+                (
+                    "Attendance logging: DISABLED"
+                ),
+                (
+                    10,
+                    80
+                ),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (
+                    0,
+                    200,
+                    255
+                ),
+                1
+            )
+
+            # ------------------------------------------------
+            # QUIT INSTRUCTION
+            # ------------------------------------------------
+
+            cv2.putText(
+                frame,
+                "Q = Quit",
                 (
                     10,
                     frame.shape[0] - 15
                 ),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
-                (200, 200, 200),
+                (
+                    200,
+                    200,
+                    200
+                ),
                 1
             )
 
-            # ------------------------------------------------
-            # SHOW FRAME
-            # ------------------------------------------------
+            # ====================================================
+            # DISPLAY
+            # ====================================================
 
             cv2.imshow(
                 WINDOW_NAME,
@@ -847,6 +1178,10 @@ def main():
 
     finally:
 
+        # ====================================================
+        # CLEANUP
+        # ====================================================
+
         camera.release()
 
         cv2.destroyAllWindows()
@@ -861,6 +1196,7 @@ def main():
         )
 
         print()
+
         print(
             "=" * 65
         )

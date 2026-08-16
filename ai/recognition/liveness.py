@@ -25,8 +25,8 @@ class LivenessDetector:
     def __init__(
         self,
         ear_threshold:     float = 0.25,
-        blinks_required:   int   = 2,
-        session_seconds:   float = 20.0,
+        blinks_required:   int   = 1,
+        session_seconds:   float = 8.0,
         min_frames_closed: int   = 1
     ):
         """
