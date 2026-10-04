@@ -1,0 +1,115 @@
+{
+  "metadata": {
+    "date": "2026-08-19T06:43:24.503780",
+    "enrolled_count": 3,
+    "threshold": 0.45,
+    "enrolled_students": [
+      "Chidi Okafor",
+      "Prince Marvel Aluka",
+      "Goodness Okpara"
+    ]
+  },
+  "genuine_tests": [
+    {
+      "test_num": 2,
+      "test_type": "genuine",
+      "expected": "Chidi Okafor",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.5814,
+      "matched": true,
+      "correct": true,
+      "timestamp": "2026-08-19T06:45:09.608059"
+    },
+    {
+      "test_num": 3,
+      "test_type": "genuine",
+      "expected": "Prince Marvel Aluka",
+      "predicted": "Prince Marvel Aluka",
+      "confidence": 0.7453,
+      "matched": true,
+      "correct": true,
+      "timestamp": "2026-08-19T06:45:50.943658"
+    },
+    {
+      "test_num": 4,
+      "test_type": "genuine",
+      "expected": "Prince Marvel Aluka",
+      "predicted": "Prince Marvel Aluka",
+      "confidence": 0.7384,
+      "matched": true,
+      "correct": true,
+      "timestamp": "2026-08-19T06:45:58.387863"
+    }
+  ],
+  "impostor_tests": [
+    {
+      "test_num": 7,
+      "test_type": "impostor",
+      "impostor": "Chidi Okafor",
+      "target": "Prince Marvel Aluka",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.6602,
+      "matched": true,
+      "false_accept": true,
+      "correct": false,
+      "timestamp": "2026-08-19T06:46:37.311561"
+    },
+    {
+      "test_num": 8,
+      "test_type": "impostor",
+      "impostor": "Prince Marvel Aluka",
+      "target": "Goodness Okpara",
+      "predicted": "Prince Marvel Aluka",
+      "confidence": 0.7483,
+      "matched": true,
+      "false_accept": true,
+      "correct": false,
+      "timestamp": "2026-08-19T06:47:16.172700"
+    },
+    {
+      "test_num": 10,
+      "test_type": "impostor",
+      "impostor": "Ade",
+      "target": "any enrolled student",
+      "predicted": "Unknown",
+      "confidence": 0.1645,
+      "matched": false,
+      "false_accept": false,
+      "correct": true,
+      "timestamp": "2026-08-19T06:49:06.153023"
+    }
+  ],
+  "liveness_tests": [
+    {
+      "test_num": 11,
+      "test_type": "liveness",
+      "person": "Chidi Okafor",
+      "success": true,
+      "time_to_confirm": 51.4,
+      "blinks_needed": 1,
+      "timestamp": "2026-08-19T06:50:01.125359"
+    },
+    {
+      "test_num": 12,
+      "test_type": "liveness",
+      "person": "Prince Marvel Aluka",
+      "success": true,
+      "time_to_confirm": 29.62,
+      "blinks_needed": 1,
+      "timestamp": "2026-08-19T06:50:34.799243"
+    },
+    {
+      "test_num": 13,
+      "test_type": "liveness",
+      "person": "Goodness Okpara",
+      "success": false,
+      "time_to_confirm": null,
+      "timestamp": "2026-08-19T06:50:45.587839"
+    }
+  ],
+  "summary": {
+    "tpr": 1.0,
+    "far": 0.6667,
+    "verdict": "NEEDS IMPROVEMENT"
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "metadata": {
+    "date": "2026-09-16T07:27:00.614632",
+    "enrolled_count": 3,
+    "threshold": 0.45,
+    "enrolled_students": [
+      "Chidi Okafor",
+      "Prince Marvel Aluka",
+      "Goodness Okpara"
+    ]
+  },
+  "genuine_tests": [
+    {
+      "test_num": 1,
+      "test_type": "genuine",
+      "expected": "Chidi Okafor",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.75,
+      "matched": true,
+      "correct": true,
+      "timestamp": "2026-09-16T07:28:43.246166"
+    },
+    {
+      "test_num": 2,
+      "test_type": "genuine",
+      "expected": "Chidi Okafor",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.7613,
+      "matched": true,
+      "correct": true,
+      "timestamp": "2026-09-16T07:28:56.533440"
+    },
+    {
+      "test_num": 3,
+      "test_type": "genuine",
+      "expected": "Prince Marvel Aluka",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.7571,
+      "matched": true,
+      "correct": false,
+      "timestamp": "2026-09-16T07:29:07.777673"
+    },
+    {
+      "test_num": 4,
+      "test_type": "genuine",
+      "expected": "Prince Marvel Aluka",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.777,
+      "matched": true,
+      "correct": false,
+      "timestamp": "2026-09-16T07:29:50.317959"
+    },
+    {
+      "test_num": 5,
+      "test_type": "genuine",
+      "expected": "Goodness Okpara",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.7861,
+      "matched": true,
+      "correct": false,
+      "timestamp": "2026-09-16T07:30:06.311565"
+    },
+    {
+      "test_num": 6,
+      "test_type": "genuine",
+      "expected": "Goodness Okpara",
+      "predicted": "Chidi Okafor",
+      "confidence": 0.7654,
+      "matched": true,
+      "correct": false,
+      "timestamp": "2026-09-16T07:30:16.010944"
+    }
+  ],
+  "impostor_tests": [
+    {
+      "test_num": 7,
+      "test_type": "impostor",
+      "impostor_name": "Chidi Okafor",
+      "enrolled": true,
+      "predicted": "Unknown",
+      "confidence": 0.0816,
+      "matched": false,
+      "false_accept": false,
+      "correct": false,
+      "verdict": "FALSE REJECT \u2014 not matched (should have matched)",
+      "timestamp": "2026-09-16T07:30:41.690739"
+    },
+    {
+      "test_num": 8,
+      "test_type": "impostor",
+      "impostor_name": "Prince Marvel Aluka",
+      "enrolled": true,
+      "predicted": "Prince Marvel Aluka",
+      "confidence": 0.6945,
+      "matched": true,
+      "false_accept": false,
+      "correct": true,
+      "verdict": "CORRECT \u2014 matched as themselves",
+      "timestamp": "2026-09-16T07:37:55.846470"
+    },
+    {
+      "test_num": 9,
+      "test_type": "impostor",
+      "impostor_name": "Goodness Okpara",
+      "enrolled": true,
+      "predicted": "Chidi Okafor",
+      "confidence": 0.7228,
+      "matched": true,
+      "false_accept": true,
+      "correct": false,
+      "verdict": "FALSE ACCEPT \u2014 matched as Chidi Okafor",
+      "timestamp": "2026-09-16T07:38:34.421392"
+    },
+    {
+      "test_num": 14,
+      "test_type": "impostor",
+      "impostor_name": "yyu",
+      "enrolled": false,
+      "predicted": "Unknown",
+      "confidence": 0.1361,
+      "matched": false,
+      "false_accept": false,
+      "correct": true,
+      "verdict": "CORRECTLY REJECTED \u2014 score 13.6%",
+      "timestamp": "2026-09-16T07:51:47.260156"
+    },
+    {
+      "test_num": 19,
+      "test_type": "impostor",
+      "impostor_name": "grant",
+      "enrolled": false,
+      "predicted": "Unknown",
+      "confidence": 0.0946,
+      "matched": false,
+      "false_accept": false,
+      "correct": true,
+      "verdict": "CORRECTLY REJECTED \u2014 score 9.5%",
+      "timestamp": "2026-09-16T07:53:40.668308"
+    }
+  ],
+  "liveness_tests": [
+    {
+      "test_num": 20,
+      "test_type": "liveness",
+      "person": "Chidi Okafor",
+      "success": true,
+      "time_to_confirm": 12.53,
+      "ear_at_blink": 0.254,
+      "timestamp": "2026-09-16T07:53:59.322714"
+    },
+    {
+      "test_num": 21,
+      "test_type": "liveness",
+      "person": "Prince Marvel Aluka",
+      "success": false,
+      "time_to_confirm": null,
+      "timestamp": "2026-09-16T07:54:13.069334"
+    },
+    {
+      "test_num": 22,
+      "test_type": "liveness",
+      "person": "Goodness Okpara",
+      "success": false,
+      "time_to_confirm": null,
+      "timestamp": "2026-09-16T07:54:19.884726"
+    }
+  ],
+  "summary": {
+    "tpr": 0.3333,
+    "far": 0.0,
+    "avg_liveness_s": 12.53,
+    "verdict": "NEEDS IMPROVEMENT"
+  }
+}

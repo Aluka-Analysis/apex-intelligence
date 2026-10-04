@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Almanac AI — Intelligent Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0d0f14;
+  --surf:     #12151c;
+  --raised:   #181c26;
+  --panel:    #1e2330;
+  --bdr:      rgba(255,255,255,0.07);
+  --bdr-hi:   rgba(255,255,255,0.14);
+  --gold:     #e8c96a;
+  --gold-dim: #9a8344;
+  --gold-glow:rgba(232,201,106,0.10);
+  --text:     #e8eaf2;
+  --muted:    #5a6180;
+  --dim:      #2a3048;
+  --green:    #34d399;
+  --green-bg: rgba(52,211,153,0.08);
+  --green-bdr:rgba(52,211,153,0.22);
+  --red:      #f87171;
+  --red-bg:   rgba(248,113,113,0.08);
+  --red-bdr:  rgba(248,113,113,0.22);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,0.08);
+  --amber-bdr:rgba(251,191,36,0.22);
+  --blue:     #60a5fa;
+  --blue-bg:  rgba(96,165,250,0.08);
+  --blue-bdr: rgba(96,165,250,0.22);
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'Outfit',sans-serif; min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── HEADER ── */
+header {
+  background:rgba(13,15,20,0.95);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--bdr);
+  padding:0 32px; height:58px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:100;
+}
+.logo { display:flex; align-items:center; gap:10px; }
+.logo-gem {
+  width:28px; height:28px; background:var(--gold);
+  clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);
+  display:flex; align-items:center; justify-content:center;
+}
+.logo-gem span { font-family:'DM Serif Display',serif; font-size:12px; color:#0d0f14; font-weight:700; }
+.logo-name { font-family:'DM Serif Display',serif; font-size:19px; color:var(--text); }
+.logo-name em { color:var(--gold); font-style:italic; }
+
+.hdr-right { display:flex; align-items:center; gap:16px; }
+.live-badge {
+  display:flex; align-items:center; gap:6px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px; color:var(--green);
+  letter-spacing:0.1em; text-transform:uppercase;
+}
+.live-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--green); box-shadow:0 0 8px var(--green);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.nav-tabs { display:flex; gap:2px; }
+.nav-tab {
+  padding:5px 14px; border:none; background:transparent;
+  font-family:'Outfit',sans-serif; font-size:11px;
+  font-weight:500; letter-spacing:0.06em; text-transform:uppercase;
+  color:rgba(232,234,242,0.4); cursor:pointer; transition:all 0.2s;
+}
+.nav-tab.active { background:rgba(255,255,255,0.08); color:var(--text); }
+.nav-tab:hover  { color:var(--text); }
+
+/* ── SESSION BAR ── */
+.session-bar {
+  background:var(--surf); border-bottom:1px solid var(--bdr);
+  padding:11px 32px; display:flex; align-items:center; gap:12px;
+  position:sticky; top:58px; z-index:90;
+}
+.session-pill {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 13px; font-family:'IBM Plex Mono',monospace;
+  font-size:11px; letter-spacing:0.04em;
+  border:1px solid var(--bdr); color:var(--muted);
+  transition:all 0.25s;
+}
+.session-pill .pdot { width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
+.session-pill.is-open   { color:var(--green); border-color:var(--green-bdr); background:var(--green-bg); }
+.session-pill.is-open .pdot { box-shadow:0 0 7px var(--green); animation:pulse 2s ease-in-out infinite; }
+.session-pill.is-closed { color:var(--amber); border-color:var(--amber-bdr); background:var(--amber-bg); }
+.session-pill.is-none   { color:var(--muted); }
+.btn-sm { padding:8px 16px; font-size:10px; }
+.session-sep { width:1px; height:16px; background:var(--bdr); margin:0 2px; }
+.session-hint {
+  font-size:11px; color:var(--muted); margin-left:auto;
+  font-family:'IBM Plex Mono',monospace; display:none;
+}
+@media(min-width:760px){ .session-hint{ display:block; } }
+
+/* ── LAYOUT ── */
+.wrap { max-width:1200px; margin:0 auto; padding:32px 32px 80px; }
+.view { display:none; }
+.view.active { display:block; }
+
+/* ── PAGE HEADER ── */
+.ph-eyebrow {
+  font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:0.18em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:8px;
+}
+.ph-title {
+  font-family:'DM Serif Display',serif; font-size:36px;
+  color:var(--text); line-height:1.1; margin-bottom:8px;
+}
+.ph-title em { color:var(--gold); font-style:italic; }
+.ph-sub { font-size:13px; color:var(--muted); line-height:1.65; margin-bottom:28px; }
+
+/* ── STATS ROW ── */
+.stats-row {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:14px; margin-bottom:28px;
+}
+.stat-card {
+  background:var(--surf); border:1px solid var(--bdr);
+  padding:20px 22px;
+}
+.stat-k {
+  font-size:10px; font-weight:600; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:8px;
+}
+.stat-v {
+  font-family:'DM Serif Display',serif;
+  font-size:34px; color:var(--text); line-height:1;
+}
+.stat-sub { font-size:11px; color:var(--muted); margin-top:4px; }
+
+/* ── CARD ── */
+.card {
+  background:var(--surf); border:1px solid var(--bdr);
+  padding:24px; margin-bottom:16px;
+}
+.card-label {
+  font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:0.14em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:16px; padding-bottom:12px;
+  border-bottom:1px solid var(--bdr);
+}
+
+/* ── TABLE ── */
+.tbl-wrap { background:var(--surf); border:1px solid var(--bdr); }
+.tbl-head {
+  display:grid; padding:11px 20px;
+  background:var(--raised); border-bottom:1px solid var(--bdr);
+}
+.th {
+  font-size:10px; font-weight:600; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--muted);
+}
+.tbl-body { min-height:100px; }
+.tbl-row {
+  display:grid; padding:13px 20px;
+  border-bottom:1px solid var(--bdr);
+  align-items:center; transition:background 0.15s;
+}
+.tbl-row:last-child { border-bottom:none; }
+.tbl-row:hover { background:var(--raised); }
+.td { font-size:13px; color:var(--text); }
+.td-mono { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); }
+.td-muted { font-size:12px; color:var(--muted); }
+.empty-st {
+  padding:48px 24px; text-align:center;
+  font-size:13px; color:var(--muted); line-height:1.65;
+}
+
+/* ── BADGE ── */
+.badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 9px; font-size:10px; font-weight:600;
+  letter-spacing:0.08em; text-transform:uppercase;
+}
+.badge-green { background:var(--green-bg); color:var(--green); border:1px solid var(--green-bdr); }
+.badge-red   { background:var(--red-bg);   color:var(--red);   border:1px solid var(--red-bdr); }
+.badge-amber { background:var(--amber-bg); color:var(--amber); border:1px solid var(--amber-bdr); }
+.badge-blue  { background:var(--blue-bg);  color:var(--blue);  border:1px solid var(--blue-bdr); }
+.badge-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+
+/* ── FORMS ── */
+.field { margin-bottom:14px; }
+.field label {
+  display:block; font-size:10px; font-weight:600;
+  letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:6px;
+}
+.field input, .field select {
+  width:100%; background:var(--raised); border:1px solid var(--bdr);
+  color:var(--text); padding:10px 13px;
+  font-family:'Outfit',sans-serif; font-size:13px;
+  outline:none; appearance:none;
+  transition:border-color 0.2s;
+}
+.field input:focus, .field select:focus { border-color:var(--gold); }
+.field input::placeholder { color:var(--dim); }
+.field select option { background:var(--surf); }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* ── BUTTONS ── */
+.btn {
+  padding:10px 20px; border:none; cursor:pointer;
+  font-family:'Outfit',sans-serif; font-size:11px;
+  font-weight:600; letter-spacing:0.12em; text-transform:uppercase;
+  transition:all 0.2s;
+}
+.btn-gold { background:var(--gold); color:#0d0f14; }
+.btn-gold:hover { background:#f0d878; box-shadow:0 4px 20px rgba(232,201,106,0.25); }
+.btn-gold:disabled { background:var(--dim); color:var(--muted); cursor:not-allowed; box-shadow:none; }
+.btn-outline {
+  background:transparent; color:var(--muted);
+  border:1px solid var(--bdr);
+}
+.btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+.btn-outline:disabled { color:var(--dim); border-color:var(--bdr); cursor:not-allowed; }
+.btn-full { width:100%; padding:13px; }
+
+/* Alert */
+.alert {
+  padding:12px 16px; font-size:12px; margin-top:10px;
+  font-family:'IBM Plex Mono',monospace; display:none;
+}
+.alert.show { display:block; }
+.alert-green { background:var(--green-bg); border:1px solid var(--green-bdr); color:var(--green); }
+.alert-red   { background:var(--red-bg);   border:1px solid var(--red-bdr);   color:var(--red); }
+.alert-amber { background:var(--amber-bg); border:1px solid var(--amber-bdr); color:var(--amber); }
+
+/* ── CAMERA VIEW ── */
+.camera-wrap {
+  position:relative; background:#000;
+  border:1px solid var(--bdr); overflow:hidden;
+  aspect-ratio:4/3;
+}
+.camera-wrap video {
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+.camera-overlay {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:8px;
+  background:rgba(13,15,20,0.7);
+  font-size:13px; color:var(--muted);
+}
+
+/* Camera HUD */
+.cam-hud {
+  position:absolute; top:0; left:0; right:0;
+  padding:10px 14px;
+  background:linear-gradient(rgba(0,0,0,0.7),transparent);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.cam-time {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px; color:#fff; letter-spacing:0.06em;
+}
+.cam-state {
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px; letter-spacing:0.1em; text-transform:uppercase;
+}
+
+/* Session banner inside gate view */
+.gate-session-banner {
+  display:none; align-items:center; gap:10px;
+  padding:11px 16px; margin-bottom:14px;
+  background:var(--amber-bg); border:1px solid var(--amber-bdr);
+  color:var(--amber); font-size:12px;
+}
+.gate-session-banner.show { display:flex; }
+
+/* Recognition result */
+.recog-result {
+  margin-top:14px; padding:16px;
+  background:var(--raised); border:1px solid var(--bdr);
+  min-height:80px;
+}
+.recog-name {
+  font-family:'DM Serif Display',serif; font-size:22px;
+  color:var(--text); margin-bottom:4px;
+}
+.recog-detail { font-size:12px; color:var(--muted); }
+
+/* Enrollment progress */
+.enroll-progress {
+  display:flex; gap:6px; margin-top:12px;
+}
+.enroll-dot {
+  width:28px; height:6px; background:var(--dim);
+  transition:background 0.3s;
+}
+.enroll-dot.done { background:var(--gold); }
+
+/* ── GATE VIEW ── */
+.gate-layout {
+  display:grid; grid-template-columns:1fr 1fr; gap:20px;
+}
+.gate-log { display:flex; flex-direction:column; gap:10px; }
+.log-entry {
+  padding:14px 16px; background:var(--raised);
+  border:1px solid var(--bdr); border-left:3px solid var(--green);
+  animation:slideIn 0.3s ease;
+}
+@keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+.log-name { font-size:14px; font-weight:600; color:var(--text); margin-bottom:3px; }
+.log-meta { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); }
+
+/* ── LOADING ── */
+.overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(13,15,20,0.9); backdrop-filter:blur(10px);
+  z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:16px;
+}
+.overlay.show { display:flex; }
+.spinner {
+  width:36px; height:36px;
+  border:1.5px solid var(--dim); border-top-color:var(--gold);
+  border-radius:50%; animation:spin 0.7s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+.ov-txt {
+  font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:0.12em; text-transform:uppercase; color:var(--muted);
+}
+
+/* ── CONFIRM MODAL ── */
+.modal-backdrop {
+  display:none; position:fixed; inset:0; z-index:998;
+  background:rgba(13,15,20,0.72); backdrop-filter:blur(6px);
+  align-items:center; justify-content:center; padding:20px;
+}
+.modal-backdrop.show { display:flex; }
+.modal-box {
+  background:var(--surf); border:1px solid var(--bdr-hi);
+  max-width:420px; width:100%; padding:26px;
+}
+.modal-box .card-label { margin-bottom:14px; }
+.modal-msg { font-size:13px; color:var(--text); line-height:1.6; margin-bottom:20px; }
+.modal-msg b { color:var(--gold); font-weight:600; }
+.modal-actions { display:flex; gap:10px; justify-content:flex-end; }
+
+/* ── FOOTER ── */
+footer {
+  border-top:1px solid var(--bdr); padding:16px 32px;
+  display:flex; justify-content:space-between;
+  font-family:'IBM Plex Mono',monospace; font-size:10px;
+  color:var(--muted); letter-spacing:0.06em;
+}
+footer span { color:var(--gold); }
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px) {
+  .stats-row { grid-template-columns:1fr 1fr; }
+  .gate-layout { grid-template-columns:1fr; }
+  .form-grid { grid-template-columns:1fr; }
+  header,.wrap,footer { padding-left:16px; padding-right:16px; }
+  .session-bar { padding-left:16px; padding-right:16px; flex-wrap:wrap; top:58px; }
+}
+@media(max-width:600px) {
+  .stats-row { grid-template-columns:1fr 1fr; }
+  .nav-tab { padding:5px 10px; font-size:10px; }
+  .ph-title { font-size:26px; }
+  .btn-sm { padding:8px 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="overlay" id="overlay">
+  <div class="spinner"></div>
+  <div class="ov-txt" id="ov-txt">Loading</div>
+</div>
+
+<!-- Close-day confirm modal -->
+<div class="modal-backdrop" id="end-modal">
+  <div class="modal-box">
+    <div class="card-label">Close School Day</div>
+    <div class="modal-msg">
+      This marks every enrolled student who was <b>not seen today</b> as absent
+      and locks today's attendance report. This can't be undone from here.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEndModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="confirmEndSession()">Close Day</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-gem"><span>AI</span></div>
+    <div class="logo-name">Almanac<em>AI</em></div>
+  </div>
+  <div class="hdr-right">
+    <div class="live-badge"><div class="live-dot"></div>System Online</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchView('dashboard',this)">Dashboard</button>
+      <button class="nav-tab" onclick="switchView('gate',this)">Gate</button>
+      <button class="nav-tab" onclick="switchView('students',this)">Students</button>
+      <button class="nav-tab" onclick="switchView('enroll',this)">Enroll</button>
+      <button class="nav-tab" onclick="switchView('attendance',this)">Attendance</button>
+    </div>
+  </div>
+</header>
+
+<!-- Session Bar -->
+<div class="session-bar">
+  <span class="session-pill is-none" id="session-pill">
+    <span class="pdot"></span><span id="session-pill-txt">Checking session…</span>
+  </span>
+  <div class="session-sep"></div>
+  <button class="btn btn-gold btn-sm" id="btn-start-session" onclick="startSession()">Open School Day</button>
+  <button class="btn btn-outline btn-sm" id="btn-end-session" onclick="requestEndSession()">Close School Day</button>
+  <span class="session-hint" id="session-hint">Open the day before the gate camera starts logging attendance.</span>
+</div>
+
+<div class="wrap">
+
+<!-- ── DASHBOARD VIEW ── -->
+<div class="view active" id="view-dashboard">
+  <div class="ph-eyebrow">// Operational Overview</div>
+  <h1 class="ph-title">Good <em id="greeting">Morning</em></h1>
+  <p class="ph-sub" id="dash-date">Loading...</p>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-k">Total Students</div>
+      <div class="stat-v" id="s-total">—</div>
+      <div class="stat-sub">Registered in system</div>
+    </div>
+    <div class="stat-card" style="border-left:2px solid var(--gold);">
+      <div class="stat-k">Enrolled</div>
+      <div class="stat-v" id="s-enrolled" style="color:var(--gold);">—</div>
+      <div class="stat-sub">Face registered</div>
+    </div>
+    <div class="stat-card" style="border-left:2px solid var(--green);">
+      <div class="stat-k">Present Today</div>
+      <div class="stat-v" id="s-present" style="color:var(--green);">—</div>
+      <div class="stat-sub">Attendance logged</div>
+    </div>
+    <div class="stat-card" style="border-left:2px solid var(--red);">
+      <div class="stat-k">Absent Today</div>
+      <div class="stat-v" id="s-absent" style="color:var(--red);">—</div>
+      <div class="stat-sub">Not yet seen</div>
+    </div>
+  </div>
+
+  <!-- Class breakdown -->
+  <div class="card">
+    <div class="card-label">Class Breakdown — Today</div>
+    <div class="tbl-wrap">
+      <div class="tbl-head" style="grid-template-columns:1fr 80px 80px 80px 100px;">
+        <div class="th">Class</div>
+        <div class="th">Total</div>
+        <div class="th">Enrolled</div>
+        <div class="th">Present</div>
+        <div class="th">Rate</div>
+      </div>
+      <div class="tbl-body" id="class-breakdown">
+        <div class="empty-st">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── GATE VIEW ── -->
+<div class="view" id="view-gate">
+  <div class="ph-eyebrow">// School Gate</div>
+  <h1 class="ph-title">Live <em>Recognition</em></h1>
+  <p class="ph-sub">Camera reads faces automatically. Students blink once to confirm liveness.</p>
+
+  <div class="gate-session-banner" id="gate-session-banner">
+    <span class="badge-dot"></span>
+    <span id="gate-session-banner-txt">School day is not open yet — open it from the bar above so attendance logs correctly.</span>
+  </div>
+
+  <div class="gate-layout">
+    <!-- Camera -->
+    <div>
+      <div class="camera-wrap" id="gate-camera-wrap">
+        <video id="gate-video" autoplay muted playsinline></video>
+        <div class="cam-hud">
+          <div class="cam-time" id="gate-time">--:--:--</div>
+          <div class="cam-state" id="gate-state" style="color:var(--muted);">DETECTING</div>
+        </div>
+        <canvas id="gate-canvas" style="display:none;"></canvas>
+        <div class="camera-overlay" id="gate-overlay">
+          <div>Camera not started</div>
+          <button class="btn btn-gold" onclick="startGateCamera()" style="margin-top:8px;">
+            Start Camera
+          </button>
+        </div>
+      </div>
+
+      <div class="recog-result" id="gate-result">
+        <div style="color:var(--muted);font-size:13px;">
+          Waiting for face detection...
+        </div>
+      </div>
+    </div>
+
+    <!-- Live log -->
+    <div>
+      <div class="card-label" style="margin-bottom:12px;">
+        Today's Attendance Log
+        <span style="float:right;color:var(--green)" id="log-count">0 logged</span>
+      </div>
+      <div class="gate-log" id="gate-log">
+        <div style="color:var(--muted);font-size:13px;padding:20px 0;">
+          No attendance logged yet today.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── STUDENTS VIEW ── -->
+<div class="view" id="view-students">
+  <div class="ph-eyebrow">// Student Registry</div>
+  <h1 class="ph-title">All <em>Students</em></h1>
+  <p class="ph-sub">Complete list of registered students and their enrollment status.</p>
+
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <button class="btn btn-gold" onclick="switchView('enroll', document.querySelector('[onclick*=enroll]'))">
+      + Enroll New Student
+    </button>
+    <button class="btn btn-outline" onclick="loadStudents()">Refresh</button>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="tbl-head" style="grid-template-columns:1fr 1fr 80px 100px 120px;">
+      <div class="th">Name</div>
+      <div class="th">Class</div>
+      <div class="th">ID No</div>
+      <div class="th">Status</div>
+      <div class="th">Parent Phone</div>
+    </div>
+    <div class="tbl-body" id="students-list">
+      <div class="empty-st">Loading students...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ENROLL VIEW ── -->
+<div class="view" id="view-enroll">
+  <div class="ph-eyebrow">// Student Enrollment</div>
+  <h1 class="ph-title">Enroll a <em>Student</em></h1>
+  <p class="ph-sub">
+    Complete the form then capture 5 face photos.
+    Raw images are never stored — only mathematical embeddings.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+
+    <!-- Form -->
+    <div class="card">
+      <div class="card-label">Student Details</div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>First Name *</label>
+          <input type="text" id="e-first" placeholder="Chidi">
+        </div>
+        <div class="field">
+          <label>Last Name *</label>
+          <input type="text" id="e-last" placeholder="Okafor">
+        </div>
+        <div class="field">
+          <label>Student ID *</label>
+          <input type="text" id="e-idno" placeholder="STU001">
+        </div>
+        <div class="field">
+          <label>Class *</label>
+          <input type="text" id="e-class" placeholder="JSS 2A">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Parent Phone</label>
+        <input type="text" id="e-phone" placeholder="08012345678">
+      </div>
+
+      <button class="btn btn-gold btn-full" id="e-create-btn" onclick="createStudent()">
+        Create Student Record
+      </button>
+      <div class="alert" id="e-alert"></div>
+    </div>
+
+    <!-- Camera capture -->
+    <div>
+      <div class="camera-wrap" id="enroll-camera-wrap">
+        <video id="enroll-video" autoplay muted playsinline></video>
+        <div class="cam-hud">
+          <div class="cam-time" id="enroll-time">--:--:--</div>
+          <div class="cam-state" id="enroll-state" style="color:var(--muted);">READY</div>
+        </div>
+        <div class="camera-overlay" id="enroll-overlay">
+          <div>Create student record first</div>
+        </div>
+      </div>
+
+      <div class="enroll-progress" id="enroll-progress">
+        <div class="enroll-dot" id="edot-1"></div>
+        <div class="enroll-dot" id="edot-2"></div>
+        <div class="enroll-dot" id="edot-3"></div>
+        <div class="enroll-dot" id="edot-4"></div>
+        <div class="enroll-dot" id="edot-5"></div>
+        <span style="font-size:11px;color:var(--muted);margin-left:8px;" id="enroll-count-txt">
+          0 / 5 captures
+        </span>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <button class="btn btn-gold" id="capture-btn" onclick="captureEnrollment()" disabled style="flex:1;">
+          Capture Face
+        </button>
+        <button class="btn btn-outline" onclick="resetEnrollment()">Reset</button>
+      </div>
+
+      <div class="alert" id="enroll-alert"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ATTENDANCE VIEW ── -->
+<div class="view" id="view-attendance">
+  <div class="ph-eyebrow">// Attendance Records</div>
+  <h1 class="ph-title">Daily <em>Report</em></h1>
+  <p class="ph-sub">View attendance records for any date.</p>
+
+  <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:24px;">
+    <div class="field" style="margin-bottom:0;flex:1;">
+      <label>Select Date</label>
+      <input type="date" id="att-date">
+    </div>
+    <button class="btn btn-gold" onclick="loadAttendance()">View Report</button>
+  </div>
+
+  <!-- Summary -->
+  <div class="stats-row" id="att-stats" style="display:none;">
+    <div class="stat-card">
+      <div class="stat-k">Total Enrolled</div>
+      <div class="stat-v" id="att-total">—</div>
+    </div>
+    <div class="stat-card" style="border-left:2px solid var(--green);">
+      <div class="stat-k">Present</div>
+      <div class="stat-v" id="att-present" style="color:var(--green);">—</div>
+    </div>
+    <div class="stat-card" style="border-left:2px solid var(--red);">
+      <div class="stat-k">Absent</div>
+      <div class="stat-v" id="att-absent" style="color:var(--red);">—</div>
+    </div>
+    <div class="stat-card" style="border-left:2px solid var(--gold);">
+      <div class="stat-k">Attendance Rate</div>
+      <div class="stat-v" id="att-rate" style="color:var(--gold);">—</div>
+    </div>
+  </div>
+
+  <div class="tbl-wrap" id="att-table" style="display:none;">
+    <div class="tbl-head" style="grid-template-columns:1fr 100px 100px 120px 100px;">
+      <div class="th">Student</div>
+      <div class="th">Class</div>
+      <div class="th">Status</div>
+      <div class="th">Time</div>
+      <div class="th">Confidence</div>
+    </div>
+    <div class="tbl-body" id="att-records">
+      <div class="empty-st">Select a date to view records.</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .wrap -->
+
+<footer>
+  <div>Almanac<span>AI</span> · Apex Intelligence · buffalo_l · v1.0.0</div>
+  <div>Built by <span>Aluka Precious Oluchukwu</span></div>
+</footer>
+
+<script>
+const API = 'http://localhost:8000';
+
+// ── STATE ──────────────────────────────────────────────────
+let gateStream       = null;
+let gateInterval     = null;
+let enrollStream     = null;
+let currentStudentId = null;
+let enrollCaptures   = 0;
+let loggedToday      = [];
+let isRecognizing    = false;
+let sessionState     = { started: false, ended: false }; // reflects last known /session/status
+
+// ── INIT ───────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setGreeting();
+  loadDashboard();
+  loadSessionStatus();
+  setInterval(updateClocks, 1000);
+  setInterval(loadSessionStatus, 20000);
+
+  // Set attendance date to today
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('att-date').value = today;
+});
+
+function setGreeting() {
+  const h = new Date().getHours();
+  const g = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+  document.getElementById('greeting').textContent = g;
+  document.getElementById('dash-date').textContent =
+    new Date().toLocaleDateString('en-GB', {
+      weekday:'long', day:'numeric', month:'long', year:'numeric'
+    });
+}
+
+function updateClocks() {
+  const t = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const el1 = document.getElementById('gate-time');
+  const el2 = document.getElementById('enroll-time');
+  if (el1) el1.textContent = t;
+  if (el2) el2.textContent = t;
+}
+
+// ── VIEW SWITCHING ─────────────────────────────────────────
+function switchView(v, btn) {
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
+  document.getElementById(`view-${v}`).classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  if (v === 'dashboard')  loadDashboard();
+  if (v === 'students')   loadStudents();
+  if (v === 'attendance') loadAttendance();
+  if (v === 'gate')       setupGateView();
+  if (v !== 'gate')       stopGate();
+  if (v !== 'enroll')     stopEnroll();
+}
+
+// ── LOADING OVERLAY ────────────────────────────────────────
+function showLoading(txt = 'Loading') {
+  document.getElementById('ov-txt').textContent = txt;
+  document.getElementById('overlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── SESSION MANAGEMENT ─────────────────────────────────────
+async function startSession() {
+  const btn = document.getElementById('btn-start-session');
+  btn.disabled = true;
+  btn.textContent = 'Opening…';
+
+  try {
+    const res  = await fetch(`${API}/session/start`, {method:'POST'});
+    const data = await res.json();
+
+    sessionState = { started:true, ended:false, start_time:data.time };
+    renderSessionPill();
+    loadDashboard();
+    if (document.getElementById('view-gate').classList.contains('active')) setupGateView();
+
+  } catch(e) {
+    console.error('Session start error:', e);
+    setSessionPill('is-none', 'Could not reach the server');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Open School Day';
+  }
+}
+
+function requestEndSession() {
+  document.getElementById('end-modal').classList.add('show');
+}
+function closeEndModal() {
+  document.getElementById('end-modal').classList.remove('show');
+}
+
+async function confirmEndSession() {
+  closeEndModal();
+  showLoading('Closing school day...');
+
+  try {
+    const res  = await fetch(`${API}/session/end`, {method:'POST'});
+    const data = await res.json();
+
+    sessionState = { started:true, ended:true, end_time:data.time, absent_marked:data.absent_marked };
+    setSessionPill('is-closed', `Closed at ${data.time} — ${data.absent_marked} marked absent`);
+    loadDashboard();
+    stopGate();
+
+  } catch(e) {
+    console.error('Session end error:', e);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function loadSessionStatus() {
+  try {
+    const res  = await fetch(`${API}/session/status`);
+    const data = await res.json();
+    sessionState = data;
+    renderSessionPill();
+  } catch(e) {
+    setSessionPill('is-none', 'Server unreachable');
+  }
+}
+
+function renderSessionPill() {
+  const data = sessionState;
+  if (data.session_ended) {
+    setSessionPill('is-closed', `Closed at ${data.end_time}`);
+  } else if (data.session_started) {
+    setSessionPill('is-open', `Open since ${data.start_time} · ${data.present_count ?? 0} present`);
+  } else {
+    setSessionPill('is-none', 'No session started today');
+  }
+  refreshGateSessionBanner();
+}
+
+function setSessionPill(cls, txt) {
+  const pill = document.getElementById('session-pill');
+  pill.className = `session-pill ${cls}`;
+  document.getElementById('session-pill-txt').textContent = txt;
+
+  const startBtn = document.getElementById('btn-start-session');
+  const endBtn   = document.getElementById('btn-end-session');
+  startBtn.disabled = (cls === 'is-open');
+  endBtn.disabled    = (cls !== 'is-open');
+}
+
+function refreshGateSessionBanner() {
+  const banner = document.getElementById('gate-session-banner');
+  const txt    = document.getElementById('gate-session-banner-txt');
+  if (!banner) return;
+
+  if (sessionState.session_started && !sessionState.session_ended) {
+    banner.classList.remove('show');
+  } else if (sessionState.session_ended) {
+    txt.textContent = 'School day is closed — recognitions will not be logged until tomorrow\'s session opens.';
+    banner.classList.add('show');
+  } else {
+    txt.textContent = 'School day is not open yet — open it from the bar above so attendance logs correctly.';
+    banner.classList.add('show');
+  }
+}
+
+// ── DASHBOARD ──────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const res  = await fetch(`${API}/dashboard/summary`);
+    const data = await res.json();
+
+    document.getElementById('s-total').textContent    = data.total_students;
+    document.getElementById('s-enrolled').textContent = data.total_enrolled;
+    document.getElementById('s-present').textContent   = data.present_today;
+    document.getElementById('s-absent').textContent   = data.absent_today;
+
+    const bd  = document.getElementById('class-breakdown');
+    const cls = data.class_breakdown || [];
+
+    if (!cls.length) {
+      bd.innerHTML = '<div class="empty-st">No classes found. Enroll students to see class data.</div>';
+      return;
+    }
+
+    bd.innerHTML = cls.map(c => {
+      const rate = c.enrolled > 0
+        ? Math.round(c.present_today / c.enrolled * 100)
+        : 0;
+      const color = rate >= 80 ? 'var(--green)' : rate >= 60 ? 'var(--amber)' : 'var(--red)';
+      return `
+        <div class="tbl-row" style="grid-template-columns:1fr 80px 80px 80px 100px;">
+          <div class="td">${c.class_name || '—'}</div>
+          <div class="td-mono">${c.total}</div>
+          <div class="td-mono">${c.enrolled}</div>
+          <div class="td-mono">${c.present_today}</div>
+          <div class="td-mono" style="color:${color}">${rate}%</div>
+        </div>`;
+    }).join('');
+
+  } catch(e) {
+    console.error('Dashboard error:', e);
+  }
+}
+
+// ── STUDENTS ───────────────────────────────────────────────
+async function loadStudents() {
+  const list = document.getElementById('students-list');
+  list.innerHTML = '<div class="empty-st">Loading...</div>';
+
+  try {
+    const res      = await fetch(`${API}/students`);
+    const students = await res.json();
+
+    if (!students.length) {
+      list.innerHTML = '<div class="empty-st">No students registered yet.<br>Go to Enroll to add students.</div>';
+      return;
+    }
+
+    list.innerHTML = students.map(s => `
+      <div class="tbl-row" style="grid-template-columns:1fr 1fr 80px 100px 120px;">
+        <div class="td">${s.first_name} ${s.last_name}</div>
+        <div class="td-muted">${s.class_name}</div>
+        <div class="td-mono">${s.student_id_no}</div>
+        <div>
+          ${s.is_enrolled
+            ? '<span class="badge badge-green"><span class="badge-dot"></span>Enrolled</span>'
+            : '<span class="badge badge-amber">Not enrolled</span>'}
+        </div>
+        <div class="td-mono">${s.parent_phone || '—'}</div>
+      </div>`).join('');
+
+  } catch(e) {
+    list.innerHTML = '<div class="empty-st">Error loading students.</div>';
+  }
+}
+
+// ── CREATE STUDENT ─────────────────────────────────────────
+async function createStudent() {
+  const first  = document.getElementById('e-first').value.trim();
+  const last   = document.getElementById('e-last').value.trim();
+  const idno   = document.getElementById('e-idno').value.trim();
+  const cls    = document.getElementById('e-class').value.trim();
+  const phone  = document.getElementById('e-phone').value.trim();
+  const alert  = document.getElementById('e-alert');
+  const btn    = document.getElementById('e-create-btn');
+
+  alert.className = 'alert';
+
+  if (!first || !last || !idno || !cls) {
+    alert.textContent = 'Please fill in all required fields.';
+    alert.className   = 'alert alert-red show';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  try {
+    const res  = await fetch(`${API}/students`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({
+        first_name: first, last_name: last,
+        student_id_no: idno, class_name: cls,
+        parent_phone: phone
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to create student');
+    }
+
+    currentStudentId = data.id;
+    enrollCaptures   = 0;
+    updateEnrollProgress(0);
+
+    alert.textContent = `Student record created for ${first} ${last}. Now capture 5 face photos.`;
+    alert.className   = 'alert alert-green show';
+
+    // Enable camera
+    startEnrollCamera();
+
+  } catch(e) {
+    alert.textContent = `Error: ${e.message}`;
+    alert.className   = 'alert alert-red show';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Create Student Record';
+  }
+}
+
+// ── ENROLL CAMERA ──────────────────────────────────────────
+async function startEnrollCamera() {
+  const overlay = document.getElementById('enroll-overlay');
+  const video   = document.getElementById('enroll-video');
+  const btn     = document.getElementById('capture-btn');
+  const state   = document.getElementById('enroll-state');
+
+  try {
+    enrollStream = await navigator.mediaDevices.getUserMedia({video: true});
+    video.srcObject = enrollStream;
+    overlay.style.display = 'none';
+    btn.disabled = false;
+    state.textContent = 'READY';
+    state.style.color = 'var(--green)';
+  } catch(e) {
+    overlay.innerHTML = `<div style="color:var(--red)">Camera access denied</div>`;
+  }
+}
+
+function stopEnroll() {
+  if (enrollStream) {
+    enrollStream.getTracks().forEach(t => t.stop());
+    enrollStream = null;
+  }
+}
+
+async function captureEnrollment() {
+  if (!currentStudentId || !enrollStream) return;
+
+  const video  = document.getElementById('enroll-video');
+  const canvas = document.createElement('canvas');
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+
+  const b64     = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+  const alert   = document.getElementById('enroll-alert');
+  const state   = document.getElementById('enroll-state');
+  const btn     = document.getElementById('capture-btn');
+
+  btn.disabled    = true;
+  btn.textContent = 'Processing...';
+  state.textContent = 'CAPTURING';
+  state.style.color = 'var(--amber)';
+
+  try {
+    const res  = await fetch(`${API}/students/${currentStudentId}/enroll`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({image_base64: b64})
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || 'Capture failed');
+
+    if (!data.success) {
+      alert.textContent = data.message;
+      alert.className   = 'alert alert-red show';
+      state.textContent = 'RETRY';
+      state.style.color = 'var(--red)';
+    } else {
+      enrollCaptures = data.captures;
+      updateEnrollProgress(data.captures);
+
+      if (data.enrollment_done) {
+        alert.textContent = `Enrollment complete! ${data.message}`;
+        alert.className   = 'alert alert-green show';
+        state.textContent = 'ENROLLED';
+        state.style.color = 'var(--green)';
+        btn.disabled = true;
+        btn.textContent = 'Enrollment Complete';
+        stopEnroll();
+      } else {
+        alert.textContent = `${data.message} — please move slightly for next capture`;
+        alert.className   = 'alert alert-green show';
+        state.textContent = 'CAPTURED';
+        state.style.color = 'var(--green)';
+      }
+    }
+
+  } catch(e) {
+    alert.textContent = `Error: ${e.message}`;
+    alert.className   = 'alert alert-red show';
+    state.textContent = 'ERROR';
+    state.style.color = 'var(--red)';
+  } finally {
+    if (enrollCaptures < 5) {
+      btn.disabled    = false;
+      btn.textContent = 'Capture Face';
+    }
+  }
+}
+
+function updateEnrollProgress(count) {
+  for (let i = 1; i <= 5; i++) {
+    const dot = document.getElementById(`edot-${i}`);
+    if (dot) dot.className = `enroll-dot${i <= count ? ' done' : ''}`;
+  }
+  document.getElementById('enroll-count-txt').textContent = `${count} / 5 captures`;
+}
+
+function resetEnrollment() {
+  currentStudentId = null;
+  enrollCaptures   = 0;
+  updateEnrollProgress(0);
+  stopEnroll();
+
+  ['e-first','e-last','e-idno','e-class','e-phone'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+
+  document.getElementById('e-alert').className = 'alert';
+  document.getElementById('enroll-alert').className = 'alert';
+
+  const btn = document.getElementById('capture-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Capture Face';
+
+  const overlay = document.getElementById('enroll-overlay');
+  overlay.style.display = 'flex';
+  overlay.innerHTML = '<div>Create student record first</div>';
+
+  document.getElementById('enroll-state').textContent = 'READY';
+  document.getElementById('enroll-state').style.color = 'var(--muted)';
+}
+
+// ── GATE CAMERA ────────────────────────────────────────────
+function setupGateView() {
+  loadSessionStatus();
+  loadTodayLog();
+}
+
+async function loadTodayLog() {
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const res  = await fetch(`${API}/attendance/${today}`);
+    const data = await res.json();
+    loggedToday = data.records || [];
+    renderLog();
+  } catch(e) {}
+}
+
+function renderLog() {
+  const log = document.getElementById('gate-log');
+  document.getElementById('log-count').textContent = `${loggedToday.length} logged`;
+
+  if (!loggedToday.length) {
+    log.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0;">No attendance logged yet today.</div>';
+    return;
+  }
+
+  log.innerHTML = [...loggedToday].reverse().map(r => `
+    <div class="log-entry">
+      <div class="log-name">${r.first_name} ${r.last_name}</div>
+      <div class="log-meta">${r.class_name} · ${r.time_recorded || '--:--:--'} · ${Math.round((r.confidence || 0) * 100)}% confidence</div>
+    </div>`).join('');
+}
+
+async function startGateCamera() {
+  const overlay = document.getElementById('gate-overlay');
+  const video   = document.getElementById('gate-video');
+  const state   = document.getElementById('gate-state');
+
+  try {
+    gateStream = await navigator.mediaDevices.getUserMedia({video: true});
+    video.srcObject = gateStream;
+    overlay.style.display = 'none';
+    state.textContent = 'DETECTING';
+    state.style.color = 'var(--muted)';
+
+    // Send frames to API every 500ms
+    gateInterval = setInterval(sendGateFrame, 500);
+
+  } catch(e) {
+    overlay.innerHTML = `<div style="color:var(--red)">Camera access denied</div>`;
+  }
+}
+
+function stopGate() {
+  if (gateInterval) { clearInterval(gateInterval); gateInterval = null; }
+  if (gateStream)   { gateStream.getTracks().forEach(t => t.stop()); gateStream = null; }
+}
+
+async function sendGateFrame() {
+  if (isRecognizing) return;
+  const video = document.getElementById('gate-video');
+  if (!video || !video.srcObject) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx     = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const b64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+  isRecognizing = true;
+
+  try {
+    const res  = await fetch(`${API}/recognize`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({image_base64: b64, session_id: 'gate_1'})
+    });
+
+    const data = await res.json();
+    updateGateDisplay(data);
+
+  } catch(e) {
+    console.error('Recognition error:', e);
+  } finally {
+    isRecognizing = false;
+  }
+}
+
+function updateGateDisplay(data) {
+  const result = document.getElementById('gate-result');
+  const state  = document.getElementById('gate-state');
+
+  if (!data.matched) {
+    state.textContent = 'DETECTING';
+    state.style.color = 'var(--muted)';
+    result.innerHTML  = '<div style="color:var(--muted);font-size:13px;">Waiting for known face...</div>';
+    return;
+  }
+
+  if (!data.liveness_passed) {
+    state.textContent = 'LIVENESS CHECK';
+    state.style.color = 'var(--amber)';
+    result.innerHTML  = `
+      <div class="recog-name">${data.student_name}</div>
+      <div class="recog-detail">${data.class_name} · ${Math.round(data.confidence * 100)}% match</div>
+      <div style="margin-top:8px;">
+        <span class="badge badge-amber">${data.liveness_status}</span>
+      </div>`;
+    return;
+  }
+
+  // Attendance logged
+  state.textContent = 'LOGGED';
+  state.style.color = 'var(--green)';
+  result.innerHTML  = `
+    <div class="recog-name" style="color:var(--green);">${data.student_name}</div>
+    <div class="recog-detail">${data.class_name} · ${Math.round(data.confidence * 100)}% confidence</div>
+    <div style="margin-top:8px;">
+      <span class="badge badge-green"><span class="badge-dot"></span>
+        ${data.attendance_logged ? 'Attendance Recorded' : 'Already Logged Today'}
+      </span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">${data.message}</div>`;
+
+  // Add to log if newly logged
+  if (data.attendance_logged) {
+    const already = loggedToday.find(r => r.student_id === data.student_id);
+    if (!already) {
+      loggedToday.push({
+        student_id:    data.student_id,
+        first_name:    data.student_name.split(' ')[0],
+        last_name:     data.student_name.split(' ').slice(1).join(' '),
+        class_name:    data.class_name,
+        status:        'present',
+        time_recorded: new Date().toLocaleTimeString('en-GB'),
+        confidence:    data.confidence
+      });
+      renderLog();
+    }
+  }
+
+  // Reset state after 3 seconds
+  setTimeout(() => {
+    if (state.textContent === 'LOGGED') {
+      state.textContent = 'DETECTING';
+      state.style.color = 'var(--muted)';
+      result.innerHTML  = '<div style="color:var(--muted);font-size:13px;">Waiting for next student...</div>';
+    }
+  }, 3000);
+}
+
+// ── ATTENDANCE ─────────────────────────────────────────────
+async function loadAttendance() {
+  const dateVal = document.getElementById('att-date').value;
+  if (!dateVal) return;
+
+  showLoading('Loading attendance');
+
+  try {
+    const res  = await fetch(`${API}/attendance/${dateVal}`);
+    const data = await res.json();
+
+    document.getElementById('att-total').textContent   = data.total_students;
+    document.getElementById('att-present').textContent = data.present;
+    document.getElementById('att-absent').textContent  = data.absent;
+    document.getElementById('att-rate').textContent    = `${data.attendance_rate}%`;
+
+    document.getElementById('att-stats').style.display = 'grid';
+    document.getElementById('att-table').style.display = 'block';
+
+    const records = document.getElementById('att-records');
+
+    if (!data.records.length) {
+      records.innerHTML = `<div class="empty-st">No attendance records for ${dateVal}.</div>`;
+    } else {
+      records.innerHTML = data.records.map(r => `
+        <div class="tbl-row" style="grid-template-columns:1fr 100px 100px 120px 100px;">
+          <div class="td">${r.first_name} ${r.last_name}</div>
+          <div class="td-muted">${r.class_name}</div>
+          <div>
+            <span class="badge badge-green">
+              <span class="badge-dot"></span>Present
+            </span>
+          </div>
+          <div class="td-mono">${r.time_recorded || '—'}</div>
+          <div class="td-mono">${r.confidence ? Math.round(r.confidence * 100) + '%' : '—'}</div>
+        </div>`).join('');
+    }
+
+  } catch(e) {
+    console.error('Attendance error:', e);
+  } finally {
+    hideLoading();
+  }
+}
+</script>
+</body>
+</html>
